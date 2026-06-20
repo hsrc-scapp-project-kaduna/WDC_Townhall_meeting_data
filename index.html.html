@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HSRC-SCAPP Analytics Dashboard — Kaduna State</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0d2b3e;--teal:#0a6272;--teal-l:#138fa5;--green:#2a7a50;--green-l:#35a067;
+  --amber:#c97c0a;--amber-l:#e8960f;--red:#b83024;--purple:#5e42a6;
+  --bg:#edf1f5;--surface:#fff;--border:#d0dbe5;--border-l:#e8edf2;
+  --text:#18262f;--muted:#607585;--light:#96a8b4;
+  --sh:0 1px 3px rgba(0,0,0,.07),0 4px 14px rgba(0,0,0,.04);
+  --sh2:0 4px 20px rgba(0,0,0,.1);
+}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── HEADER ── */
+.hdr{background:var(--navy);color:#fff;height:58px;display:flex;align-items:center;gap:16px;padding:0 22px;position:sticky;top:0;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.hdr-logo{width:34px;height:34px;background:var(--teal-l);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.hdr-text .t1{font-size:14px;font-weight:600;letter-spacing:.02em}
+.hdr-text .t2{font-size:10px;color:rgba(255,255,255,.55);font-weight:300}
+.hdr-sep{width:1px;height:28px;background:rgba(255,255,255,.12)}
+.hdr-filters{display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.hdr-filters select{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;
+  padding:4px 10px;border-radius:5px;font-size:11px;font-family:inherit;cursor:pointer;outline:none
+}
+.hdr-filters select option{background:var(--navy)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.btn-up{
+  background:var(--teal-l);color:#fff;border:none;padding:7px 13px;border-radius:5px;
+  font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;
+  transition:background .15s
+}
+.btn-up:hover{background:#199dbf}
+.data-badge{font-size:11px;color:rgba(255,255,255,.6);background:rgba(255,255,255,.1);padding:3px 9px;border-radius:12px;white-space:nowrap}
+
+/* ── CONNECT SCREEN WRAPPER ── */
+#uploadScreen{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 58px);padding:30px}
+
+/* ── CONNECT (GOOGLE SHEET) PANEL ── */
+.conn-wrap{max-width:560px;width:100%}
+.conn-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:40px 44px;box-shadow:var(--sh2)
+}
+.conn-icon{font-size:40px;margin-bottom:12px;text-align:center}
+.conn-title{font-size:19px;font-weight:600;margin-bottom:7px;text-align:center}
+.conn-sub{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:24px;text-align:center}
+.conn-actions{display:flex;gap:10px;margin-top:6px}
+.conn-btn{flex:1;background:var(--teal);color:#fff;border:none;padding:11px 18px;border-radius:7px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s}
+.conn-btn:hover{background:#085062}
+.conn-err{
+  background:#fde0dc;color:#8a1e15;border-radius:7px;padding:10px 13px;
+  font-size:12px;margin-top:14px;line-height:1.5;display:none
+}
+
+/* ── REFRESH / SOURCE CONTROLS (header) ── */
+.refresh-wrap{display:flex;align-items:center;gap:7px}
+.btn-refresh{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;
+  padding:7px 12px;border-radius:5px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;gap:5px;transition:background .15s
+}
+.btn-refresh:hover{background:rgba(255,255,255,.18)}
+.btn-refresh.spin .ic{display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.auto-sel{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#fff;
+  padding:6px 8px;border-radius:5px;font-size:11px;font-family:inherit;cursor:pointer;outline:none
+}
+.auto-sel option{background:var(--navy)}
+.last-upd{font-size:10.5px;color:rgba(255,255,255,.55);white-space:nowrap}
+.src-badge{font-size:11px;padding:3px 9px;border-radius:12px;white-space:nowrap;display:none;align-items:center;gap:5px}
+.src-live{background:rgba(53,160,103,.18);color:#9be8c0}
+.src-static{background:rgba(255,255,255,.1);color:rgba(255,255,255,.6)}
+.src-dot{width:6px;height:6px;border-radius:50%;background:#35a067;display:inline-block}
+.src-dot.live{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none}
+
+/* ── TABS ── */
+.tabs{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 22px;display:flex;position:sticky;top:58px;z-index:150;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);overflow-x:auto
+}
+.tab{
+  padding:13px 18px;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap
+}
+.tab:hover{color:var(--teal)}
+.tab.on{color:var(--teal);border-bottom-color:var(--teal)}
+
+/* ── TAB CONTENT ── */
+.tc{display:none;padding:22px}
+.tc.on{display:block}
+
+/* ── KPI CARDS ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+.kpi{
+  background:var(--surface);border-radius:9px;padding:17px 18px;
+  box-shadow:var(--sh);border-left:4px solid var(--teal);position:relative;overflow:hidden
+}
+.kpi::after{
+  content:'';position:absolute;top:-18px;right:-18px;width:72px;height:72px;
+  border-radius:50%;background:rgba(10,98,114,.05)
+}
+.kpi.amber{border-left-color:var(--amber)}
+.kpi.amber::after{background:rgba(201,124,10,.05)}
+.kpi.green{border-left-color:var(--green)}
+.kpi.green::after{background:rgba(42,122,80,.05)}
+.kpi.red{border-left-color:var(--red)}
+.kpi.red::after{background:rgba(184,48,36,.05)}
+.kpi.purple{border-left-color:var(--purple)}
+.kpi-lbl{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+.kpi-val{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:500;line-height:1;margin-bottom:3px}
+.kpi-sub{font-size:11px;color:var(--light)}
+
+/* ── CHART CARDS ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
+.card{background:var(--surface);border-radius:9px;padding:18px 20px;box-shadow:var(--sh)}
+.card.full{grid-column:1/-1}
+.card-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.card-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.cw{position:relative}.cw-260{height:260px}.cw-200{height:200px}.cw-180{height:180px}.cw-140{height:140px}
+
+/* ── INDICATOR BARS ── */
+.ind-list{display:flex;flex-direction:column;gap:8px}
+.ind-row{display:flex;align-items:center;gap:10px}
+.ind-lbl{font-size:11.5px;color:var(--text);width:290px;flex-shrink:0;line-height:1.3}
+.ind-wrap{flex:1;height:18px;background:#e8edf2;border-radius:3px;overflow:hidden}
+.ind-bar{height:100%;border-radius:3px;transition:width .6s ease;min-width:2px}
+.bar-high{background:var(--green-l)}
+.bar-mid{background:var(--amber-l)}
+.bar-low{background:var(--red)}
+.ind-pct{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:500;color:var(--muted);width:38px;text-align:right;flex-shrink:0}
+
+/* ── TABLES ── */
+.tw{overflow-x:auto;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{
+  text-align:left;padding:9px 11px;font-size:10.5px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  background:#f4f7fa;border-bottom:2px solid var(--border);white-space:nowrap
+}
+td{padding:8px 11px;border-bottom:1px solid var(--border-l);color:var(--text);vertical-align:middle}
+tr:hover td{background:#f8fbfc}
+.mono{font-family:'IBM Plex Mono',monospace;font-weight:500}
+.hi{color:var(--green)}.mi{color:var(--amber)}.lo{color:var(--red)}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.by{background:#d1f0e0;color:#165c35}
+.bn{background:#fde0dc;color:#8a1e15}
+.bs{background:#fef0d5;color:#7a4800}
+.bb{background:#dde8f7;color:#1a3f7a}
+
+/* ── INFO BAR ── */
+.info-bar{
+  background:#e4f2f7;border:1px solid #addce8;border-radius:7px;
+  padding:9px 13px;font-size:12px;color:#1a5f78;margin-bottom:18px;
+  display:flex;align-items:center;gap:7px
+}
+
+/* ── SECTION HEADER ── */
+.sec-hdr{display:flex;align-items:baseline;gap:9px;margin-bottom:14px}
+.sec-title{font-size:14px;font-weight:600}
+.sec-n{font-size:11.5px;color:var(--muted)}
+
+@media(max-width:800px){
+  .grid2,.grid3{grid-template-columns:1fr}
+  .card.full{grid-column:1}
+  .ind-lbl{width:160px;font-size:10.5px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-logo">⚕</div>
+  <div class="hdr-text">
+    <div class="t1">HSRC-SCAPP Analytics Dashboard</div>
+    <div class="t2">Kaduna State · Community Health Governance</div>
+  </div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-filters" id="filters">
+    <select id="fLGA" onchange="filter()"><option value="">All LGAs</option></select>
+    <select id="fType" onchange="filter()">
+      <option value="">All Meeting Types</option>
+      <option value="WDC">WDC</option>
+      <option value="Town Hall">Town Hall</option>
+    </select>
+    <select id="fYear" onchange="filter()"><option value="">All Years</option></select>
+    <select id="fMonth" onchange="filter()">
+      <option value="">All Months</option>
+      <option value="1">January</option><option value="2">February</option>
+      <option value="3">March</option><option value="4">April</option>
+      <option value="5">May</option><option value="6">June</option>
+      <option value="7">July</option><option value="8">August</option>
+      <option value="9">September</option><option value="10">October</option>
+      <option value="11">November</option><option value="12">December</option>
+    </select>
+  </div>
+  <div class="hdr-right">
+    <span class="src-badge src-live" id="srcLive"><span class="src-dot live"></span>Google Sheet (live)</span>
+    <span class="src-badge src-static" id="srcStatic"><span class="src-dot"></span>Uploaded file</span>
+    <span class="last-upd" id="lastUpd" style="display:none"></span>
+    <span class="data-badge" id="dataBadge" style="display:none"></span>
+    <div class="refresh-wrap" id="refreshWrap" style="display:none">
+      <select class="auto-sel" id="autoSel" onchange="setAutoRefresh()" title="Auto-refresh interval">
+        <option value="0">Auto: Off</option>
+        <option value="1">Every 1 min</option>
+        <option value="5">Every 5 min</option>
+        <option value="15">Every 15 min</option>
+        <option value="30">Every 30 min</option>
+      </select>
+      <button class="btn-refresh" id="btnRefresh" onclick="manualRefresh()"><span class="ic">⟳</span>Refresh</button>
+    </div>
+    <button class="btn-up" onclick="document.getElementById('fi').click()">📂 Upload XLSX</button>
+    <input type="file" id="fi" accept=".xlsx,.xls" style="display:none" onchange="onFile(event)">
+  </div>
+</header>
+
+<!-- CONNECT SCREEN -->
+<div id="uploadScreen">
+  <div class="conn-wrap">
+    <div class="conn-box">
+      <div class="conn-icon">📊</div>
+      <div class="conn-title">HSRC-SCAPP Analytics Dashboard</div>
+      <div class="conn-sub">Kaduna State · Community Health Governance<br>Click below to pull the latest data from the field reports sheet.</div>
+
+      <div class="conn-actions">
+        <button class="conn-btn" onclick="connectEmbedded()">🔗 Connect to Data</button>
+      </div>
+      <div class="conn-err" id="connErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="tabs">
+    <div class="tab on" onclick="showTab('ov')">Overview</div>
+    <div class="tab" onclick="showTab('ind')">Governance Indicators</div>
+    <div class="tab" onclick="showTab('qual')">Meeting Quality</div>
+    <div class="tab" onclick="showTab('att')">Attendance</div>
+    <div class="tab" onclick="showTab('lga')">LGA Performance</div>
+    <div class="tab" onclick="showTab('iss')">Issues Tracker</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tc on" id="tc-ov">
+    <div class="kpi-grid" id="kvOv"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Meetings by Type</div>
+        <div class="card-sub">Distribution across meeting categories</div>
+        <div class="cw cw-180"><canvas id="cType"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Meeting Hold Rate by LGA</div>
+        <div class="card-sub">% of scheduled meetings that held (green ≥80%, amber ≥50%)</div>
+        <div class="cw cw-180"><canvas id="cHold"></canvas></div>
+      </div>
+      <div class="card full">
+        <div class="card-title">Submissions Over Time</div>
+        <div class="card-sub">Monthly meeting report submissions by reporting period</div>
+        <div class="cw cw-200"><canvas id="cTime"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INDICATORS -->
+  <div class="tc" id="tc-ind">
+    <div class="info-bar">ℹ️ <strong>Section F</strong> captures discussion topics declared by field officers. <strong>Section D</strong> captures formal reports taken during the meeting. Rates show % of meetings where each topic was discussed/reported (Yes responses only).</div>
+    <div class="grid2">
+      <div class="card full">
+        <div class="sec-hdr">
+          <div class="sec-title">Section F — Discussion Topics</div>
+          <div class="sec-n" id="fN"></div>
+        </div>
+        <div class="ind-list" id="fList"></div>
+      </div>
+      <div class="card full">
+        <div class="sec-hdr"><div class="sec-title">Section D — WDC Key Function Reports Presented</div></div>
+        <div class="ind-list" id="dList"></div>
+      </div>
+      <div class="card full">
+        <div class="card-title">Section F Indicator Rates by LGA</div>
+        <div class="card-sub">% Yes for key governance discussion topics across all LGAs</div>
+        <div class="tw" id="heatmap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUALITY -->
+  <div class="tc" id="tc-qual">
+    <div class="kpi-grid" id="kvQual"></div>
+    <div class="grid2">
+      <div class="card full">
+        <div class="card-title">Meeting Process Compliance — Section C &amp; G</div>
+        <div class="card-sub">% of meetings where each procedural requirement was met (Yes)</div>
+        <div class="cw cw-260"><canvas id="cQual"></canvas></div>
+      </div>
+      <div class="card full">
+        <div class="card-title">Action Tracker — Cumulative Issue Resolution (Section C5–C8)</div>
+        <div class="card-sub">Total tracked issues and their resolution status across all meetings</div>
+        <div class="cw cw-180"><canvas id="cRes"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATTENDANCE -->
+  <div class="tc" id="tc-att">
+    <div class="kpi-grid" id="kvAtt"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Avg Attendance by Meeting Type</div>
+        <div class="card-sub">Mean total participants per category</div>
+        <div class="cw cw-180"><canvas id="cAttType"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Gender Distribution</div>
+        <div class="card-sub">Male vs Female across all meetings</div>
+        <div class="cw cw-180"><canvas id="cGender"></canvas></div>
+      </div>
+      <div class="card full">
+        <div class="card-title">Average Attendance by LGA</div>
+        <div class="card-sub">Mean participants per meeting, per LGA</div>
+        <div class="cw cw-200"><canvas id="cAttLGA"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LGA PERFORMANCE -->
+  <div class="tc" id="tc-lga">
+    <div class="card">
+      <div class="sec-hdr">
+        <div class="sec-title">LGA Performance Summary</div>
+        <div class="sec-n" id="lgaN"></div>
+      </div>
+      <div class="tw" id="lgaTable"></div>
+    </div>
+  </div>
+
+  <!-- ISSUES -->
+  <div class="tc" id="tc-iss">
+    <div class="kpi-grid" id="kvIss"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Issues by Category (E2)</div>
+        <div class="card-sub">Issue type distribution</div>
+        <div class="cw cw-200"><canvas id="cIssCat"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Issue Status (E4)</div>
+        <div class="card-sub">Current resolution status</div>
+        <div class="cw cw-200"><canvas id="cIssSt"></canvas></div>
+      </div>
+      <div class="card full">
+        <div class="sec-title" style="margin-bottom:12px">Issues Log</div>
+        <div class="tw" id="issTable"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────
+let raw=[], issues=[], fd=[];
+let ch={};
+const MN=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const PAL=['#0a6272','#2a7a50','#c97c0a','#b83024','#5e42a6','#2c8fb5','#d4680a','#3d6b3a'];
+
+// ── GOOGLE SHEET CONFIG ──────────────────────────────────────────
+// Fill these in once and the dashboard will connect automatically on
+// page load — no need to paste links into the connect screen each time.
+// Paste the full sheet URL (with #gid=...) or just the CSV export URL.
+const CONFIG = {
+  spreadsheetId:   '1-iKkG7hs4ohOGbdtmFT_wfpLCfNND-586ewSVEpvaTc',
+  mainSheetName:   'v1_WDC_TownHall_Other_meeting',   // ⚠ unverified — confirm exact tab name (see chat)
+  issuesSheetName: 'E_repeat_issues',
+  autoRefreshMinutes: 5  // 0 disables auto-refresh; used when spreadsheetId above is filled in
+};
+
+let srcMode='';          // 'sheet' or 'xlsx'
+let gMainCsv='', gIssuesCsv='';
+let autoTimer=null;
+
+// Turn a pasted Google Sheets URL (or an already-built CSV export URL)
+// into a CSV export URL we can fetch().
+function toCsvUrl(input){
+  if(!input) return '';
+  input=input.trim();
+  if(/output=csv|format=csv|tqx=out:csv/.test(input)) return input; // already a CSV url
+  const idM=input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if(!idM) return '';
+  const id=idM[1];
+  let gid='0';
+  const gidM=input.match(/[#&?]gid=(\d+)/);
+  if(gidM) gid=gidM[1];
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+}
+
+// Build a CSV export URL by exact tab name rather than gid — more robust
+// for an embedded config, since gids can shift if tabs are reordered but
+// the tab name lookup won't.
+function gvizCsvUrl(spreadsheetId, sheetName){
+  if(!spreadsheetId || !sheetName) return '';
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
+
+function parseCsv(text){
+  const res=Papa.parse(text,{header:true,skipEmptyLines:true});
+  return res.data.map(row=>{
+    const o={};
+    Object.keys(row).forEach(k=>{ o[k]= row[k]==null ? '' : row[k]; });
+    return o;
+  });
+}
+
+async function fetchCsv(url){
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const text=await r.text();
+  if(/<html/i.test(text.slice(0,200))) throw new Error('Got an HTML page instead of CSV — the sheet is probably not shared as "Anyone with the link can view".');
+  return parseCsv(text);
+}
+
+async function loadFromSheet(mainUrl, issuesUrl, isRefresh){
+  const btn=document.getElementById('btnRefresh');
+  if(btn) btn.classList.add('spin');
+  const errEl=document.getElementById('connErr');
+  if(errEl) errEl.style.display='none';
+  try{
+    gMainCsv=toCsvUrl(mainUrl);
+    gIssuesCsv=toCsvUrl(issuesUrl);
+    if(!gMainCsv) throw new Error('Could not read a sheet ID from that link. Paste the full URL from your browser address bar.');
+    raw=await fetchCsv(gMainCsv);
+    issues = gIssuesCsv ? await fetchCsv(gIssuesCsv) : [];
+    srcMode='sheet';
+    document.getElementById('lastUpd').style.display='';
+    document.getElementById('lastUpd').textContent='Updated '+new Date().toLocaleTimeString();
+    document.getElementById('refreshWrap').style.display='flex';
+    document.getElementById('srcLive').style.display='inline-flex';
+    document.getElementById('srcStatic').style.display='none';
+    init(isRefresh);
+  }catch(err){
+    let msg=err.message;
+    if(/Failed to fetch|NetworkError|TypeError/i.test(msg)){
+      if(location.protocol==='file:'){
+        msg='Browsers block live data requests from a file opened directly off your computer (file://...). Host this HTML on GitHub Pages (or any http/https server) and it will work — opening it by double-click won\'t.';
+      }else{
+        msg='The request was blocked before reaching Google. This almost always means the sheet isn\'t shared as "Anyone with the link" → Viewer yet — check Share settings on the sheet and try again.';
+      }
+    }
+    if(errEl){
+      errEl.textContent='Could not load the sheet: '+msg;
+      errEl.style.display='block';
+    }else{
+      alert('Could not refresh from Google Sheet: '+msg);
+    }
+  }finally{
+    if(btn) btn.classList.remove('spin');
+  }
+}
+
+function manualRefresh(){
+  if(srcMode==='sheet') loadFromSheet(gMainCsv, gIssuesCsv, true);
+}
+
+function setAutoRefresh(){
+  const mins=+document.getElementById('autoSel').value;
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  if(mins>0){
+    autoTimer=setInterval(()=>{ if(srcMode==='sheet') manualRefresh(); }, mins*60*1000);
+  }
+}
+
+// ── COLUMN FINDER ─────────────────────────────────────────────
+function fc(row, kw){
+  const k=Object.keys(row).find(k=>k&&k.toLowerCase().includes(kw.toLowerCase()));
+  return k?row[k]:'';
+}
+function isYes(v){return v==='Yes'||v==='yes'}
+function pct(a,b){return b?Math.round(a/b*100):0}
+function avg(arr){const n=arr.filter(v=>v!==''&&v!==null&&!isNaN(+v)).map(Number);return n.length?(n.reduce((a,b)=>a+b,0)/n.length):0}
+function yesR(data,kw){
+  const vals=data.map(r=>fc(r,kw));
+  const valid=vals.filter(v=>v!=='');
+  const yes=vals.filter(isYes);
+  return valid.length?Math.round(yes.length/valid.length*100):0;
+}
+function bCls(v){return v>=70?'bar-high':v>=40?'bar-mid':'bar-low'}
+function pCls(v){return v>=70?'hi':v>=40?'mi':'lo'}
+function killChart(id){if(ch[id]){ch[id].destroy();ch[id]=null}}
+
+// ── FILE HANDLING ─────────────────────────────────────────────
+function onFile(e){const f=e.target.files[0];if(f)go(f);e.target.value=''}
+function go(file){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      raw=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      issues=wb.SheetNames.length>1?XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[1]],{defval:''}):[];
+      srcMode='xlsx';
+      if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+      document.getElementById('refreshWrap').style.display='none';
+      document.getElementById('lastUpd').style.display='none';
+      document.getElementById('srcLive').style.display='none';
+      document.getElementById('srcStatic').style.display='inline-flex';
+      init(false);
+    }catch(err){alert('Could not read file: '+err.message)}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function init(isRefresh){
+  // Populate filters
+  const curLGA=isRefresh?document.getElementById('fLGA').value:'';
+  const curYear=isRefresh?document.getElementById('fYear').value:'';
+  const lgas=[...new Set(raw.map(r=>fc(r,'Name of LGA')).filter(Boolean))].sort();
+  const fLGA=document.getElementById('fLGA');
+  fLGA.innerHTML='<option value="">All LGAs</option>';
+  lgas.forEach(l=>fLGA.innerHTML+=`<option value="${l}">${l}</option>`);
+  if(lgas.includes(curLGA)) fLGA.value=curLGA;
+  const years=[...new Set(raw.map(r=>String(fc(r,'A5_year'))).filter(v=>v&&v!=='nan'&&v!==''))];
+  const fYear=document.getElementById('fYear');
+  fYear.innerHTML='<option value="">All Years</option>';
+  years.sort().forEach(y=>fYear.innerHTML+=`<option value="${y}">${y.split('.')[0]}</option>`);
+  if(years.includes(curYear)) fYear.value=curYear;
+  document.getElementById('filters').style.display='flex';
+  document.getElementById('uploadScreen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  document.getElementById('dataBadge').style.display='';
+  filter();
+}
+
+// ── EMBEDDED CONNECT (the "Connect to Data" button) ──────────────
+// Uses the spreadsheetId + tab names baked into CONFIG above — the
+// person viewing the page never sees a raw link, just the button.
+function connectEmbedded(){
+  if(!CONFIG.spreadsheetId || !CONFIG.mainSheetName){
+    const errEl=document.getElementById('connErr');
+    errEl.textContent='No sheet is embedded in this file yet — fill in the CONFIG block near the top of the script.';
+    errEl.style.display='block';
+    return;
+  }
+  const mainUrl=gvizCsvUrl(CONFIG.spreadsheetId, CONFIG.mainSheetName);
+  const issuesUrl=CONFIG.issuesSheetName ? gvizCsvUrl(CONFIG.spreadsheetId, CONFIG.issuesSheetName) : '';
+  loadFromSheet(mainUrl, issuesUrl, false).then(()=>setAutoRefresh());
+}
+
+(function bootstrap(){
+  document.getElementById('autoSel').value=String(CONFIG.autoRefreshMinutes||0);
+})();
+
+function filter(){
+  const lga=document.getElementById('fLGA').value;
+  const mt=document.getElementById('fType').value;
+  const yr=document.getElementById('fYear').value;
+  const mo=document.getElementById('fMonth').value;
+  fd=raw.filter(r=>{
+    if(lga&&fc(r,'Name of LGA')!==lga)return false;
+    if(mt&&!fc(r,'Type of meeting').includes(mt))return false;
+    if(yr&&String(fc(r,'A5_year')).split('.')[0]!==yr)return false;
+    if(mo&&String(Math.round(+fc(r,'A5_month')))!==mo)return false;
+    return true;
+  });
+  document.getElementById('dataBadge').textContent=`${fd.length} records loaded`;
+  renderAll();
+}
+
+function showTab(id){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('on',['ov','ind','qual','att','lga','iss'][i]===id);
+  });
+  document.querySelectorAll('.tc').forEach(tc=>tc.classList.toggle('on',tc.id==='tc-'+id));
+}
+
+function renderAll(){
+  renderOv();renderInd();renderQual();renderAtt();renderLGA();renderIss();
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────
+function renderOv(){
+  const d=fd;
+  const lgas=new Set(d.map(r=>fc(r,'Name of LGA')).filter(Boolean));
+  const wards=new Set(d.map(r=>fc(r,'Name of Ward')).filter(Boolean));
+  const held=d.filter(r=>isYes(fc(r,'meeting hold this month'))).length;
+  const bhcpf=yesR(d,'BHCPF fund');
+  const comMob=yesR(d,'community mobilization and sensitization');
+
+  document.getElementById('kvOv').innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">Total Records</div><div class="kpi-val">${d.length}</div><div class="kpi-sub">Meeting reports</div></div>
+    <div class="kpi green"><div class="kpi-lbl">LGAs Covered</div><div class="kpi-val">${lgas.size}</div><div class="kpi-sub">of 23 in Kaduna State</div></div>
+    <div class="kpi amber"><div class="kpi-lbl">Wards Reporting</div><div class="kpi-val">${wards.size}</div><div class="kpi-sub">Unique wards</div></div>
+    <div class="kpi"><div class="kpi-lbl">Meeting Hold Rate</div><div class="kpi-val">${pct(held,d.length)}%</div><div class="kpi-sub">${held} of ${d.length} held</div></div>
+    <div class="kpi ${bhcpf>=50?'green':bhcpf>=25?'amber':'red'}"><div class="kpi-lbl">BHCPF Discussed (F3)</div><div class="kpi-val">${bhcpf}%</div><div class="kpi-sub">of meetings</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Community Mob (F9)</div><div class="kpi-val">${comMob}%</div><div class="kpi-sub">of meetings</div></div>
+  `;
+
+  // Type chart
+  const types={};
+  d.forEach(r=>{const t=fc(r,'Type of meeting')||'Unknown';types[t]=(types[t]||0)+1});
+  killChart('cType');
+  ch['cType']=new Chart(document.getElementById('cType'),{
+    type:'doughnut',
+    data:{labels:Object.keys(types),datasets:[{data:Object.values(types),backgroundColor:PAL,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},padding:10}}}}
+  });
+
+  // Hold rate by LGA
+  const lgaHeld={};const lgaTot={};
+  d.forEach(r=>{
+    const l=fc(r,'Name of LGA');if(!l)return;
+    lgaTot[l]=(lgaTot[l]||0)+1;
+    if(isYes(fc(r,'meeting hold this month')))lgaHeld[l]=(lgaHeld[l]||0)+1;
+  });
+  const lns=Object.keys(lgaTot).sort();
+  const hrs=lns.map(l=>pct(lgaHeld[l]||0,lgaTot[l]));
+  killChart('cHold');
+  ch['cHold']=new Chart(document.getElementById('cHold'),{
+    type:'bar',
+    data:{labels:lns,datasets:[{label:'% Held',data:hrs,backgroundColor:hrs.map(v=>v>=80?'#35a067':v>=50?'#e8960f':'#b83024'),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{max:100,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'#eee'}},x:{ticks:{font:{size:8},maxRotation:45}}}}
+  });
+
+  // Timeline
+  const tl={};
+  d.forEach(r=>{
+    const y=String(fc(r,'A5_year')).split('.')[0];
+    const m=String(Math.round(+fc(r,'A5_month')));
+    if(!y||y==='nan'||!m||m==='NaN')return;
+    const k=`${y}-${m.padStart(2,'0')}`;tl[k]=(tl[k]||0)+1;
+  });
+  const tks=Object.keys(tl).sort();
+  killChart('cTime');
+  ch['cTime']=new Chart(document.getElementById('cTime'),{
+    type:'line',
+    data:{labels:tks.map(k=>{const[y,m]=k.split('-');return MN[+m]+' '+y}),
+      datasets:[{label:'Submissions',data:tks.map(k=>tl[k]),borderColor:'#0a6272',backgroundColor:'rgba(10,98,114,.08)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:'#0a6272',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{font:{size:10}},grid:{color:'#eee'}},x:{ticks:{font:{size:10}}}}}
+  });
+}
+
+// ── INDICATORS ────────────────────────────────────────────────
+const FI=[
+  {k:'health problems of the community',l:'F1 — Health problems of the community'},
+  {k:'functioning of the PHC facility',l:'F2 — PHC facility functioning'},
+  {k:'BHCPF fund',l:'F3 — BHCPF fund (plans, funds & implementation)'},
+  {k:'income and expenditure of ward',l:'F4 — Ward income & expenditure'},
+  {k:'resource mobilization efforts',l:'F5 — Resource mobilisation efforts'},
+  {k:'Review or discussion of plans',l:'F6 — Business / QI plans reviewed'},
+  {k:'contractors and ongoing infrastructure',l:'F7 — Contractors & infrastructure'},
+  {k:'service utilization',l:'F8 — Service utilisation discussed'},
+  {k:'community mobilization and sensitization',l:'F9 — Community mobilisation & sensitisation'},
+  {k:'community feedback',l:'F10 — Community feedback reported'},
+  {k:'any other social or development',l:'F11 — Other social/development issues'},
+];
+const DI=[
+  {k:'update on finances of the ward',l:'D1 — WDC finances update provided'},
+  {k:'drug revolving fund',l:'D1 — DRF (Drug Revolving Fund) update'},
+  {k:'utilization of health facility funds',l:'D1 — Health facility funds utilisation'},
+  {k:'community mobilization activities discussed',l:'D3 — Community mobilisation activities'},
+  {k:'community action plan discussed',l:'D4 — Community action plan discussed'},
+  {k:'PHC tracka',l:'D5 — PHC Tracka findings presented'},
+  {k:'facility building and other infrastructure',l:'D15 — Facility infrastructure tracked'},
+  {k:'commodities (drugs',l:'D18 — Drug/commodity issues tracked'},
+  {k:'staffing) issues',l:'D19 — Health worker/staffing issues'},
+];
+
+function indBars(data,arr,containerId){
+  document.getElementById(containerId).innerHTML=arr.map(i=>{
+    const r=yesR(data,i.k);
+    return`<div class="ind-row">
+      <div class="ind-lbl">${i.l}</div>
+      <div class="ind-wrap"><div class="ind-bar ${bCls(r)}" style="width:${r}%"></div></div>
+      <div class="ind-pct">${r}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderInd(){
+  const d=fd;
+  document.getElementById('fN').textContent=`${d.length} meetings`;
+  indBars(d,FI,'fList');
+  indBars(d,DI,'dList');
+
+  // Heatmap
+  const lgas=[...new Set(d.map(r=>fc(r,'Name of LGA')).filter(Boolean))].sort();
+  const cols=[
+    {k:'BHCPF fund',h:'F3 BHCPF'},
+    {k:'income and expenditure',h:'F4 Finance'},
+    {k:'resource mobilization efforts',h:'F5 Resrc Mob'},
+    {k:'functioning of the PHC facility',h:'F2 PHC Fnctng'},
+    {k:'community mobilization and sensitization',h:'F9 Com Mob'},
+    {k:'Review or discussion of plans',h:'F6 Plans'},
+    {k:'contractors and ongoing infrastructure',h:'F7 Infra'},
+    {k:'service utilization',h:'F8 Svc Use'},
+  ];
+  let html=`<table><thead><tr><th>LGA</th>`;
+  cols.forEach(c=>html+=`<th title="${c.k}">${c.h}</th>`);
+  html+=`<th>N</th></tr></thead><tbody>`;
+  lgas.forEach(lga=>{
+    const ld=d.filter(r=>fc(r,'Name of LGA')===lga);
+    html+=`<tr><td><strong>${lga}</strong></td>`;
+    cols.forEach(c=>{
+      const r=yesR(ld,c.k);
+      html+=`<td class="mono ${pCls(r)}">${r}%</td>`;
+    });
+    html+=`<td class="mono">${ld.length}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('heatmap').innerHTML=html;
+}
+
+// ── QUALITY ───────────────────────────────────────────────────
+const QI=[
+  {k:'agenda for the meeting',l:'C1 — Agenda prepared'},
+  {k:'minutes of the last meeting presented',l:'C2 — Minutes of last meeting presented'},
+  {k:'minutes of the last meeting shared',l:'C3 — Minutes shared before meeting'},
+  {k:'action tracker',l:'C4 — Action tracker / matters arising used'},
+  {k:'HSRC officer attend this meeting',l:'A7 — HSRC officer attended'},
+  {k:'KADMAM officer attend this meeting',l:'A8 — KADMAM officer attended'},
+  {k:'meeting hold as previously scheduled',l:'G1 — Meeting held as scheduled'},
+  {k:'date of the next meeting agreed',l:'G2 — Next meeting date agreed'},
+  {k:'venue of the next meeting agreed',l:'G3 — Next meeting venue agreed'},
+];
+
+function renderQual(){
+  const d=fd;
+  const rates=QI.map(q=>yesR(d,q.k));
+  const avgQ=Math.round(rates.reduce((a,b)=>a+b,0)/rates.length);
+  const [agenda,mins,shared,action]=rates;
+  document.getElementById('kvQual').innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">Avg Quality Score</div><div class="kpi-val">${avgQ}%</div><div class="kpi-sub">All process indicators</div></div>
+    <div class="kpi ${agenda>=70?'green':agenda>=40?'amber':'red'}"><div class="kpi-lbl">Agenda Prepared</div><div class="kpi-val">${agenda}%</div><div class="kpi-sub">C1 compliance</div></div>
+    <div class="kpi ${mins>=70?'green':mins>=40?'amber':'red'}"><div class="kpi-lbl">Minutes Presented</div><div class="kpi-val">${mins}%</div><div class="kpi-sub">C2 compliance</div></div>
+    <div class="kpi ${action>=70?'green':action>=40?'amber':'red'}"><div class="kpi-lbl">Action Tracker Used</div><div class="kpi-val">${action}%</div><div class="kpi-sub">C4 compliance</div></div>
+  `;
+
+  killChart('cQual');
+  ch['cQual']=new Chart(document.getElementById('cQual'),{
+    type:'bar',
+    data:{labels:QI.map(q=>q.l),datasets:[{label:'% Yes',data:rates,
+      backgroundColor:rates.map(r=>r>=70?'rgba(42,122,80,.8)':r>=40?'rgba(201,124,10,.8)':'rgba(184,48,36,.8)'),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'#eee'}},y:{ticks:{font:{size:11}}}}}
+  });
+
+  // Resolution
+  const c5=d.map(r=>+fc(r,'issues discussed from the previous meeting were tracked')||0);
+  const c6=d.map(r=>+fc(r,'completelty addressed')||0);
+  const c7=d.map(r=>+fc(r,'on-going) as the date')||0);
+  const c8=d.map(r=>+fc(r,'not sorted at all')||0);
+  const sum=arr=>arr.reduce((a,b)=>a+b,0);
+  killChart('cRes');
+  ch['cRes']=new Chart(document.getElementById('cRes'),{
+    type:'bar',
+    data:{labels:['Total Tracked (C5)','Fully Resolved (C6)','Ongoing (C7)','Unresolved (C8)'],
+      datasets:[{data:[sum(c5),sum(c6),sum(c7),sum(c8)],
+        backgroundColor:['#0a6272','#2a7a50','#c97c0a','#b83024'],borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{font:{size:10}},grid:{color:'#eee'}},x:{ticks:{font:{size:10}}}}}
+  });
+}
+
+// ── ATTENDANCE ────────────────────────────────────────────────
+function renderAtt(){
+  const d=fd;
+  const tots=d.map(r=>+fc(r,'Total number of participants')||0).filter(v=>v>0);
+  // Fix: differentiate male from female by using 'of male ' vs 'of female '
+  const males=d.map(r=>{
+    const k=Object.keys(r).find(k=>k&&k.includes('of male '));
+    return k?+r[k]||0:0;
+  });
+  const fems=d.map(r=>{
+    const k=Object.keys(r).find(k=>k&&k.includes('of female '));
+    return k?+r[k]||0:0;
+  });
+  const totM=males.reduce((a,b)=>a+b,0);
+  const totF=fems.reduce((a,b)=>a+b,0);
+  const totAll=totM+totF;
+  const fp=totAll?Math.round(totF/totAll*100):0;
+  const avgT=Math.round(avg(tots));
+
+  document.getElementById('kvAtt').innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">Avg Attendance</div><div class="kpi-val">${avgT}</div><div class="kpi-sub">Participants per meeting</div></div>
+    <div class="kpi amber"><div class="kpi-lbl">Total Participants</div><div class="kpi-val">${totAll.toLocaleString()}</div><div class="kpi-sub">Across all meetings</div></div>
+    <div class="kpi ${fp>=40?'green':'amber'}"><div class="kpi-lbl">Female Participation</div><div class="kpi-val">${fp}%</div><div class="kpi-sub">${totF.toLocaleString()} of ${totAll.toLocaleString()}</div></div>
+  `;
+
+  // By type
+  const types={};
+  d.forEach(r=>{
+    const t=fc(r,'Type of meeting')||'Unknown';
+    const n=+fc(r,'Total number of participants')||0;
+    if(!types[t])types[t]=[];
+    if(n>0)types[t].push(n);
+  });
+  const tls=Object.keys(types);
+  killChart('cAttType');
+  ch['cAttType']=new Chart(document.getElementById('cAttType'),{
+    type:'bar',
+    data:{labels:tls,datasets:[{label:'Avg',data:tls.map(t=>Math.round(avg(types[t]))),backgroundColor:PAL,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{font:{size:10}},grid:{color:'#eee'}},x:{ticks:{font:{size:10}}}}}
+  });
+
+  killChart('cGender');
+  ch['cGender']=new Chart(document.getElementById('cGender'),{
+    type:'doughnut',
+    data:{labels:['Male','Female'],datasets:[{data:[totM,totF],backgroundColor:['#0a6272','#c97c0a'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:12}}}}}
+  });
+
+  // By LGA
+  const lgaAtt={};
+  d.forEach(r=>{
+    const l=fc(r,'Name of LGA');const n=+fc(r,'Total number of participants')||0;
+    if(!l||!n)return;if(!lgaAtt[l])lgaAtt[l]=[];lgaAtt[l].push(n);
+  });
+  const lns=Object.keys(lgaAtt).sort();
+  killChart('cAttLGA');
+  ch['cAttLGA']=new Chart(document.getElementById('cAttLGA'),{
+    type:'bar',
+    data:{labels:lns,datasets:[{label:'Avg attendance',data:lns.map(l=>Math.round(avg(lgaAtt[l]))),backgroundColor:'rgba(10,98,114,.75)',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{font:{size:10}},grid:{color:'#eee'}},x:{ticks:{font:{size:9},maxRotation:45}}}}
+  });
+}
+
+// ── LGA PERFORMANCE TABLE ─────────────────────────────────────
+function renderLGA(){
+  const d=fd;
+  const lgas=[...new Set(d.map(r=>fc(r,'Name of LGA')).filter(Boolean))].sort();
+  document.getElementById('lgaN').textContent=`${lgas.length} LGAs`;
+
+  let html=`<table><thead><tr>
+    <th>LGA</th><th>N</th><th>Held%</th><th>Avg Att</th>
+    <th>F3 BHCPF</th><th>F9 ComMob</th><th>F2 PHC</th><th>F6 Plans</th>
+    <th>C1 Agenda</th><th>C2 Minutes</th><th>C4 Action</th>
+  </tr></thead><tbody>`;
+  lgas.forEach(lga=>{
+    const ld=d.filter(r=>fc(r,'Name of LGA')===lga);
+    const held=ld.filter(r=>isYes(fc(r,'meeting hold this month'))).length;
+    const attArr=ld.map(r=>+fc(r,'Total number of participants')||0).filter(v=>v>0);
+    const avgA=Math.round(avg(attArr));
+    const v=(kw)=>{const r=yesR(ld,kw);return`<td class="mono ${pCls(r)}">${r}%</td>`};
+    html+=`<tr>
+      <td><strong>${lga}</strong></td>
+      <td class="mono">${ld.length}</td>
+      <td class="mono ${pCls(pct(held,ld.length))}">${pct(held,ld.length)}%</td>
+      <td class="mono">${avgA}</td>
+      ${v('BHCPF fund')}${v('community mobilization and sensitization')}${v('functioning of the PHC facility')}${v('Review or discussion of plans')}
+      ${v('agenda for the meeting')}${v('minutes of the last meeting presented')}${v('action tracker')}
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('lgaTable').innerHTML=html;
+}
+
+// ── ISSUES ────────────────────────────────────────────────────
+function renderIss(){
+  if(!issues.length){
+    document.getElementById('kvIss').innerHTML=`<div class="info-bar">ℹ️ No issues (E_repeat) data found in the file. Ensure both sheets are present in the XLSX export.</div>`;
+    return;
+  }
+  const resolved=issues.filter(r=>(r['E4. current status of the issue']||'').toLowerCase().includes('resolved')).length;
+  const cats={};issues.forEach(r=>{const t=r['E2. Issue']||'Unknown';cats[t]=(cats[t]||0)+1});
+  const stats={};issues.forEach(r=>{const s=(r['E4. current status of the issue']||'Unknown').split('(')[0].trim();stats[s]=(stats[s]||0)+1});
+
+  document.getElementById('kvIss').innerHTML=`
+    <div class="kpi"><div class="kpi-lbl">Total Issues Logged</div><div class="kpi-val">${issues.length}</div><div class="kpi-sub">From E_repeat sheet</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Resolved Issues</div><div class="kpi-val">${resolved}</div><div class="kpi-sub">${pct(resolved,issues.length)}% resolution rate</div></div>
+    <div class="kpi amber"><div class="kpi-lbl">Issue Categories</div><div class="kpi-val">${Object.keys(cats).length}</div><div class="kpi-sub">Distinct types</div></div>
+  `;
+
+  killChart('cIssCat');
+  ch['cIssCat']=new Chart(document.getElementById('cIssCat'),{
+    type:'bar',
+    data:{labels:Object.keys(cats),datasets:[{data:Object.values(cats),backgroundColor:'#0a6272',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:10}},grid:{color:'#eee'}},y:{ticks:{font:{size:10}}}}}
+  });
+
+  killChart('cIssSt');
+  ch['cIssSt']=new Chart(document.getElementById('cIssSt'),{
+    type:'doughnut',
+    data:{labels:Object.keys(stats),datasets:[{data:Object.values(stats),backgroundColor:PAL,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},padding:8}}}}
+  });
+
+  let html=`<table><thead><tr>
+    <th>Issue Type</th><th>Sub-Issue</th><th>Description</th><th>Status</th><th>Action Point</th><th>Responsible</th>
+  </tr></thead><tbody>`;
+  const sl=r=>s=>{const v=r[s]||'';return v.length>70?v.substring(0,70)+'…':v};
+  issues.slice(0,60).forEach(r=>{
+    const g=sl(r);
+    const status=(r['E4. current status of the issue']||'').split('(')[0].trim();
+    const bc=status.toLowerCase().includes('resolved')?'by':status.toLowerCase().includes('new')?'bn':'bs';
+    html+=`<tr>
+      <td>${r['E2. Issue']||''}</td>
+      <td>${r['E3. Sub-issue']||''}</td>
+      <td style="max-width:200px;white-space:normal;font-size:11px">${g('E3bc. Brief description of the issues')}</td>
+      <td><span class="badge ${bc}">${status.substring(0,22)}</span></td>
+      <td style="max-width:180px;white-space:normal;font-size:11px">${g("E5. Action point from this meeting")}</td>
+      <td style="font-size:11px">${r['E6. Person responsible ( position in committee)']||''}</td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  if(issues.length>60)html+=`<p style="font-size:11px;color:var(--muted);margin-top:8px">Showing 60 of ${issues.length} issues</p>`;
+  document.getElementById('issTable').innerHTML=html;
+}
+</script>
+</body>
+</html>
